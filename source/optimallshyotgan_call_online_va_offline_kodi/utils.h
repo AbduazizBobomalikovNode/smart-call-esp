@@ -7,12 +7,13 @@
 typedef std::function<void()> callback_fun_t;
 
 bool _delay(int millisekunt, callback_fun_t callback_fun);
+void listenForMessage();
 
 DynamicJsonDocument deserializeWithMemoryIncrease(const char* json_str);
 bool validateFields(DynamicJsonDocument& json);
 bool validateJson(const char* input);
 
-void callParm(int call_delay, int count);
+void callParm(int call_delay, int call_duration, int count);
 void check_calls();
 bool includesDay(const char str[], const char substr[]);
 

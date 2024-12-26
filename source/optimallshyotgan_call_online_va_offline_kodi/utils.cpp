@@ -1,3 +1,6 @@
+#include "WString.h"
+#include "esp32-hal.h"
+#include "esp32-hal-gpio.h"
 #include <string>
 #include "HardwareSerial.h"
 #include "utils.h"
@@ -5,6 +8,7 @@
 #include <SPIFFS.h>
 #include <FS.h>
 #include "variables.h"
+
 
 
 
@@ -18,6 +22,191 @@ bool _delay(int millisekunt, callback_fun_t callback_fun) {
     }
   }
   return false;
+}
+
+//;
+void listenForTime() {
+  // Joriy vaqtni olish va chiqarish
+  DateTime now = rtc.now();
+  __day = now.dayOfTheWeek();
+  __hour = now.hour();
+  __minute = now.minute();
+
+  // Yagona qatorda joriy vaqtni chiqarish
+  // Serial.print("T Kun: ");
+  // Serial.print(__day);
+  // Serial.print(", Soat: ");
+  // Serial.print(__hour);
+  // Serial.print(", Daqiqa: ");
+  // Serial.println(__minute);
+}
+
+
+bool includesDay(const char str[], const char substr[]) {
+  // Serial.println(str);
+  // Serial.println(substr);
+  // Null tekshiruvi va bo'sh qatorlarni tekshirish
+  if (str == NULL || substr == NULL) {
+    Serial.println("Error: Null pointer argument passed to includesDay.");
+    return false;
+  }
+
+  // Bo'sh qatorlarni tekshirish
+  if (str[0] == '\0' || substr[0] == '\0') {
+    Serial.println("Error: Empty string argument passed to includesDay.");
+    return false;
+  }
+
+  // strstr funksiyasi orqali substringni qidirish
+  return strstr(str, substr) != NULL;
+}
+
+
+void callParm(int call_delay, int call_duration, int count) {
+  digitalWrite(LED_FAIL, HIGH);
+  Serial.print("Call delay: ");
+  Serial.print(call_delay);
+  Serial.print(", Count: ");
+  Serial.println(count);
+  while (count != 0) {
+    count--;
+    digitalWrite(CALL_PIN, HIGH);
+    delay(call_duration);
+    digitalWrite(CALL_PIN, LOW);
+    delay(call_delay);
+  }
+  digitalWrite(LED_FAIL, LOW);
+}
+
+// Initialize variables and constants
+int old__day, old__hour, old__minute;
+void check_calls() {
+  // Vaqtni yangilashni sinab ko‘ramiz
+  listenForTime();
+
+  // Eski vaqt bilan hozirgi vaqtni solishtiramiz
+  if (old__day != __day || old__hour != __hour || old__minute != __minute) {
+    // Faylni ochishga harakat qilamiz
+    File file = SPIFFS.open("/smart.txt", "r");
+    if (!file) {
+      Serial.println("Faylni o‘qish uchun ochib bo‘lmadi!");
+      return;
+    }
+
+    // Fayldan har bir qatorni o‘qish
+    while (file.available()) {
+      String line = file.readStringUntil('\n');
+      // Serial.print("String line = file.readStringUntil('n') check_calls;  :");
+      // Serial.println(line);
+
+      // JSON deserializatsiya qilishni sinash
+      DynamicJsonDocument json(1024);  // JSON uchun hujjat hajmini belgilash
+      DeserializationError error = deserializeJson(json, line.c_str());
+
+      // Deserializatsiya xatosini tekshirish
+      if (error) {
+        Serial.print("JSON deserializatsiya xatoligi: ");
+        Serial.println(error.c_str());
+        continue;  // Keyingi qatorga o‘tish
+      }
+      String days_ = "";
+      if (json.containsKey("days") && json["days"].is<JsonArray>()) {
+        // Massivni olish
+        JsonArray daysArray = json["days"].as<JsonArray>();
+
+        // Massivdagi har bir elementni chiqarish
+        for (JsonVariant day : daysArray) {
+          // Serial.println(day.as<String>());
+          days_ = days_ + ", " + day.as<String>();
+        }
+      }
+
+
+      // JSON tarkibini tekshirish
+      if (json.containsKey("days") && json["days"].is<JsonArray>()) {
+        // Serial.println(json["days"].as<String>());
+        // JSON tarkibidan vaqtni ajratish va soat va minutni bo'lish
+        String timeString = json["time"].as<String>();
+
+        // Soat va minutni bo'lish
+        int separatorIndex = timeString.indexOf(':');  // ':' belgining indeksini topish
+        String hour = "";                              // Soatni ajratish
+        String minute = "";
+        bool ch1 = false;
+        bool ch2 = false;
+        bool ch3 = false;
+        if (separatorIndex != -1) {
+          String hour = timeString.substring(0, separatorIndex);     // Soatni ajratish
+          String minute = timeString.substring(separatorIndex + 1);  // Minutni ajratish
+
+          // Natijani chiqarish
+          // Serial.print("K Soat: ");
+          // Serial.print(hour);
+          // Serial.print(" Minut: ");
+          // Serial.print(minute);
+          ch1 = includesDay(days_.c_str(), String(__day).c_str());
+          // Serial.print(" includesDayTrue: ");
+          // Serial.print(ch1);
+          ch2 = hour.toInt() == __hour;
+          // Serial.print(" hour.toInt() == __hour: ");
+          // Serial.println(ch2);
+          ch3 = minute.toInt() == __minute;
+          // Serial.print(" minute.toInt() == __minute: ");
+          // Serial.println(ch3);
+        } else {
+          Serial.println("Vaqtni ajratishda xatolik: Format noto'g'ri.");
+        }
+        bool flag = ch1 && ch2 && ch3;
+        // Serial.print(" flag: ");
+        // Serial.println(flag);
+        if (flag) {
+          Serial.println("Qo'ng'iroq parametrlarini sozlash...");
+          // Qo‘ng‘iroqni sozlash
+          callParm(json["call_delay"].as<int>() * 1000,
+                   json["call_duration"].as<int>() * 1000,
+                   json["count"].as<int>());
+
+          // Eski vaqtni yangilash
+          old__day = __day;
+          old__hour = __hour;
+          old__minute = __minute;
+
+          // Faylni yopamiz
+          file.close();
+          return;  // Qo'ng'iroq topildi, funksiyani yakunlaymiz
+        }
+      } else {
+        Serial.println("JSONda 'days' yoki boshqa kerakli qiymatlar yo'q!");
+      }
+    }
+
+    // Faylni yopamiz
+    file.close();
+  }
+}
+
+
+
+
+
+
+// Xabarlarni eshitish funksiyasi
+void listenForMessage() {
+  if (radio.available()) {                                  // If a message is available
+    char receivedMessage[32] = "";                          // Buffer for the message
+    radio.read(&receivedMessage, sizeof(receivedMessage));  // Read the message
+
+    // Print the received message
+    Serial.print("Qabul qilindi: ");
+    Serial.println(receivedMessage);
+
+    // Use strcmp to compare the received message with "HA"
+    if (strcmp(receivedMessage, "HA") == 0) {
+      callParm(2000, 5000, 2);
+    }
+  } else {
+    check_calls();
+  }
 }
 
 
@@ -72,46 +261,7 @@ bool validateFields(DynamicJsonDocument& json) {
 }
 
 
-bool includesDay(const char str[], const char substr[]) {
-  return strstr(str, substr) != NULL;
-}
 
-void callParm(int call_delay, int count) {
-  Serial.print("Call delay: ");
-  Serial.print(call_delay);
-  Serial.print(", Count: ");
-  Serial.println(count);
-}
-
-
-void check_calls() {
-  File file = SPIFFS.open("/smart.txt", "r");
-  if (!file) {
-    Serial.println("Faylni o‘qish uchun ochib bo‘lmadi!");
-    return;
-  }
-
- 
-
-  while (file.available()) {
-    String line = file.readStringUntil('\n');
-    Serial.print("String line = file.readStringUntil('\n');  :");
-    Serial.print(line);
-
-    // JSON deserializatsiya qilish
-    DynamicJsonDocument json = deserializeWithMemoryIncrease(line.c_str());
-    if (!json.isNull()) {
-      if (includesDay(json["days"], String(__day).c_str()) && json["hour"].as<int>() == __hour && json["minute"].as<int>() == __minute) {
-        callParm(json["call_delay"].as<int>(), json["count"].as<int>());
-        file.close();  // Topilgandan keyin faylni yopamiz
-        return;
-      }
-    } else {
-      Serial.println("JSON deserializatsiya xatoligi: " + line);
-    }
-  }
-  file.close();
-}
 
 
 bool saveToFile(String str_json) {
@@ -148,28 +298,28 @@ String get_json() {
     return "";
   }
   Serial.println("smart.txt fayli o'qish uchun ochildi!");
-  
+
   String json_str = "[";  // JSON massivining boshlanishi
-  
-  bool firstLine = true; // Birinchi satrni tekshirish uchun flag
+
+  bool firstLine = true;  // Birinchi satrni tekshirish uchun flag
   while (file1.available()) {
     String line = file1.readStringUntil('\n');  // Yangi satrni o'qish
-    line.trim();  // Satrdan ortiqcha bo'sh joylarni olib tashlash
-    
+    line.trim();                                // Satrdan ortiqcha bo'sh joylarni olib tashlash
+
     if (line.length() > 0) {  // Bo'sh satrlarni o'tkazib yuborish
       if (!firstLine) {
         json_str += ",";  // Keyingi elementlarni vergul bilan ajratish
       }
-      json_str += line;  // Satrdagi ma'lumotni JSONga qo'shish
+      json_str += line;   // Satrdagi ma'lumotni JSONga qo'shish
       firstLine = false;  // Endi birinchi satr emas
     }
   }
-  
+
   file1.close();
-  
+
   json_str += "]";  // JSON massivining tugashi
   // Serial.println(json_str);
-  
+
   return json_str;
 }
 
@@ -193,14 +343,14 @@ bool deleteJsonById(int id) {
   }
 
   bool found = false;
-  
+
 
   while (file.available()) {
     String line = file.readStringUntil('\n');
 
-    Serial.print("String line = file.readStringUntil('\n');  :");
+    Serial.print("String line = file.readStringUntil('n');  deleteJsonById :");
     Serial.println(line);
-    
+
     DynamicJsonDocument json = deserializeWithMemoryIncrease(line.c_str());
     if (!json.isNull()) {
       if (json["id"].as<int>() != id) {
@@ -239,14 +389,14 @@ bool deleteJsonByUdateId(int id) {
   }
 
   bool found = false;
-  
+
 
   while (file.available()) {
     String line = file.readStringUntil('\n');
 
-    Serial.print("String line = file.readStringUntil('\n');  :");
+    Serial.print("String line = file.readStringUntil('n');  deleteJsonByUdateId:");
     Serial.println(line);
-    
+
     DynamicJsonDocument json = deserializeWithMemoryIncrease(line.c_str());
     if (!json.isNull()) {
       if (json["type"].as<String>() != "ofline") {
@@ -290,14 +440,14 @@ bool updateJsonById(int id, const String& newJson) {
   }
 
   bool updated = false;
-  
+
 
   while (file.available()) {
     String line = file.readStringUntil('\n');
 
-    Serial.print("String line = file.readStringUntil('\n');  :");
+    Serial.print("String line = file.readStringUntil('n');  deleteJsonByUdateId:");
     Serial.println(line);
-    
+
 
     DynamicJsonDocument json = deserializeWithMemoryIncrease(line.c_str());
     if (!json.isNull()) {
@@ -346,12 +496,12 @@ bool checkJsonById(int id) {
 
   while (file.available()) {
     String line = file.readStringUntil('\n');
-    
+
     DynamicJsonDocument json = deserializeWithMemoryIncrease(line.c_str());
     if (!json.isNull()) {
       if (json["id"].as<int>() == id) {
         found = true;  // Agar id topilsa, found true bo'ladi
-        break;  // Loopsni to'xtatamiz, id topilganda boshqa qatorlarni o'qishga hojat yo'q
+        break;         // Loopsni to'xtatamiz, id topilganda boshqa qatorlarni o'qishga hojat yo'q
       }
     }
   }
@@ -372,16 +522,16 @@ bool checkTypeById(int id) {
 
   while (file.available()) {
     String line = file.readStringUntil('\n');
-    
+
     DynamicJsonDocument json = deserializeWithMemoryIncrease(line.c_str());
     if (!json.isNull()) {
       if (json["id"].as<int>() == id && json["type"].as<String>() == "ofline") {
         found = true;  // Agar id topilsa, found true bo'ladi
-        break;  // Loopsni to'xtatamiz, id topilganda boshqa qatorlarni o'qishga hojat yo'q
+        break;         // Loopsni to'xtatamiz, id topilganda boshqa qatorlarni o'qishga hojat yo'q
       }
     }
   }
-  
+
   file.close();
 
   return found;  // Natija qaytariladi

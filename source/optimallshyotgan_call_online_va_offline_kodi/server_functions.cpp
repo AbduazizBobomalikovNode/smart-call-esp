@@ -11,11 +11,12 @@
 void handleRoot() {
   if (chaekAuth()) { return; }
   server.send(200, "application/json", "{\"result\":\"chalindi!\"}");
+  callParm(1000,3000,2);
 }
 
 void handleHello() {
   if (chaekAuth()) { return; }
-  server.send(201, "application/json", "{\"result\":\"Avtorizatsiya mofaqiyatli amalga oshirildi!\"}");
+  server.send(201, "application/json", "{\"iddevice\":" + String(user_mqtt_device_id) + ", \"result\":\"Avtorizatsiya mofaqiyatli amalga oshirildi!\"}");
 }
 
 void handle_get_all_GET() {

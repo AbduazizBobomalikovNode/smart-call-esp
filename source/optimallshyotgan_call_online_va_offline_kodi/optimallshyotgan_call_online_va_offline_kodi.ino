@@ -1,13 +1,7 @@
-// Qurilmaga mos kutubxonalar
-#if defined(ESP32)
-  #include <WiFi.h>
-  #include <ESP32WebServer.h>
-#elif defined(ESP8266)
-  #include <ESP8266WiFi.h>
-  #include <ESP8266WebServer.h>
-#else
-  #error "Ushbu kod faqat ESP32 yoki ESP8266 uchun mo'ljallangan!"
-#endif
+
+#include <WiFi.h>
+#include <ESP32WebServer.h>
+
 
 
 #include <ArduinoJson.h>
@@ -40,6 +34,29 @@ void setup() {
     // SPIFFS.remove("/smart.txt");
     Serial.println("Fayl tizimi o'rnatilgan");
   }
+  // RTC sozlamalari
+  if (!rtc.begin()) {
+    Serial.println("RTC moduli topilmadi");
+    while (1)
+      ;  // Tizimni to‘xtatish
+  }
+  // // Joriy vaqtni sozlash (faqat kerak bo'lsa)
+  // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+
+  // nRF24 sozlamalari
+  radio.begin();
+  radio.openReadingPipe(1, address);  // Qabul qilish kanali
+  radio.setPALevel(RF24_PA_HIGH);     // Quvvat darajasi
+  radio.startListening();             // Qabul qilish rejimiga o‘tkazish
+
+  // LED sozlamalari
+  pinMode(LED_SUCCESS, OUTPUT);
+  pinMode(LED_FAIL, OUTPUT);
+  pinMode(CALL_PIN, OUTPUT);
+
+  digitalWrite(LED_SUCCESS, LOW);  // LEDlarni o‘chirish
+  digitalWrite(LED_FAIL, LOW);     // LEDlarni o‘chirish
+  digitalWrite(CALL_PIN, LOW);     // releni  o‘chirish
 
   // Serial.println("SPIFFS formatlash boshlandi...");
   // if (SPIFFS.format()) {
@@ -89,10 +106,13 @@ void setup() {
 
   Serial.println(WiFi.softAPIP());
   while (WiFi.status() != WL_CONNECTED) {
+    digitalWrite(LED_SUCCESS, HIGH);
     _delay(500, []() {
+      listenForMessage();
       server.handleClient();
     });
     Serial.print(".");
+    digitalWrite(LED_SUCCESS, LOW);
   }
 
   Serial.println("");
@@ -106,6 +126,7 @@ void setup() {
   client.setBufferSize(512);
   while (!client.connected()) {
     reconnect([]() {
+      listenForMessage();
       server.handleClient();
     });
   }
@@ -128,9 +149,11 @@ void setup() {
 
 int old_time_checker = 0;
 void loop() {
+  listenForMessage();
   server.handleClient();
   if (!client.connected()) {
     reconnect([]() {
+      listenForMessage();
       server.handleClient();
     });
   }

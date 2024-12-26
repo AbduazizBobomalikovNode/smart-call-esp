@@ -4,15 +4,26 @@
 #include "utils.h"
 
 
-// Qurilmaga mos kutubxonalar
-#if defined(ESP32)
-  ESP32WebServer server(80);
-#elif defined(ESP8266)
-  ESP8266WebServer server(80);
-#else
-  #error "Ushbu kod faqat ESP32 yoki ESP8266 uchun mo'ljallangan!"
-#endif
 
+ESP32WebServer server(80);
+
+
+#include <RTClib.h>
+#include <SPI.h>
+#include <nRF24L01.h>
+#include <RF24.h>
+
+const int CE_PIN = 4;
+const int CSN_PIN = 5;
+
+const int LED_SUCCESS = 14;
+const int LED_FAIL = 27;
+
+const int CALL_PIN = 32;
+const byte address[6] = "00005";
+
+RTC_DS1307 rtc;
+RF24 radio(CE_PIN, CSN_PIN);
 
 // Initialize variables and constants
 int __day, __hour, __minute;
@@ -26,6 +37,7 @@ const char* mqtt_user = "***REMOVED***";
 const char* mqtt_password = "***REMOVED***";  // JWT token
 const char* mqtt_client_id = "demo-NjMKHkO810gkfhh";
 const char* user_mqtt = "55087719";
+const char* user_mqtt_device_id = "99436911";
 String subscribe_topic_str = String("/index/") + user_mqtt + "/ring";
 const char* subscribe_topic = strdup(subscribe_topic_str.c_str());
 
