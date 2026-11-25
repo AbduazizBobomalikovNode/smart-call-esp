@@ -1,3 +1,4 @@
+#include "hash.h"
 #include "mbedtls/sha256.h"
 #include <string.h>
 #include <stdio.h>
@@ -19,13 +20,13 @@ bool compare_passwords(const char* input_password, const char* salt, const unsig
     unsigned char calculated_hash[32];
     sha256_hash(input_password, salt, calculated_hash);
 
-    // Hashlarni solishtirish
+    // Doimiy vaqtli solishtirish: erta return qilinmaydi, shuning uchun vaqt
+    // bo'yicha (timing) hujum orqali hashni topib bo'lmaydi.
+    unsigned char diff = 0;
     for (int i = 0; i < 32; i++) {
-        if (calculated_hash[i] != stored_hash[i]) {
-            return false;  // Hashlar mos emas
-        }
+        diff |= (unsigned char)(calculated_hash[i] ^ stored_hash[i]);
     }
-    return true;  // Hashlar mos
+    return diff == 0;
 }
 
 void print_hash(unsigned char hash[32]) {
@@ -38,8 +39,8 @@ void print_hash(unsigned char hash[32]) {
 // void setup() {
 //     Serial.begin(115200);
 
-//     const char* password = "***REMOVED***";
-//     const char* salt = "my_random_salt";
+//     const char* password = "EXAMPLE_ONLY";
+//     const char* salt = "EXAMPLE_ONLY";
 //     unsigned char stored_hash[32];
 
 //     // Parolni hash qilish va saqlash (odatda bu saqlanadi)
@@ -49,7 +50,7 @@ void print_hash(unsigned char hash[32]) {
 //     print_hash(stored_hash);
 
 //     // Foydalanuvchi tomonidan kiritilgan parolni tekshirish
-//     const char* input_password = "***REMOVED***";  // Foydalanuvchi kiritgan parol
+//     const char* input_password = "EXAMPLE_ONLY";  // Foydalanuvchi kiritgan parol
 //     bool is_match = compare_passwords(input_password, salt, stored_hash);
 
 //     if (is_match) {

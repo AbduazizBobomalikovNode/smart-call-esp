@@ -1,0 +1,8 @@
+# Maxfiy sozlamalar (faqat secrets.example.h commit qilinadi)
+**/secrets.h
+
+# Build / IDE
+build/
+.pio/
+*.bin
+.vscode/

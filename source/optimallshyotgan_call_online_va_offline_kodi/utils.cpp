@@ -15,13 +15,25 @@
 typedef std::function<void()> callback_fun_t;
 
 bool _delay(int millisekunt, callback_fun_t callback_fun) {
-  int oldingi_vaqt = millis();
-  while ((millisekunt > (millis() - oldingi_vaqt))) {
+  // unsigned long: millis() 49 kundan keyin aylanib o'tganda ham to'g'ri ishlaydi
+  unsigned long oldingi_vaqt = millis();
+  while ((unsigned long)millisekunt > (millis() - oldingi_vaqt)) {
     if (callback_fun != nullptr) {
       callback_fun();  // Callback funksiyasini chaqirish
     }
+    yield();  // watchdog / WiFi stek uchun vaqt berish
   }
   return false;
+}
+
+// delay() o'rniga: kutish paytida MQTT keepalive (client.loop) ishlab turadi,
+// aks holda uzoq qo'ng'iroq (soniyalab) paytida broker ulanishni uzib qo'yadi.
+static void keepAliveDelay(unsigned long ms) {
+  unsigned long start = millis();
+  while (millis() - start < ms) {
+    if (client.connected()) client.loop();
+    delay(5);
+  }
 }
 
 //;
@@ -68,12 +80,13 @@ void callParm(int call_delay, int call_duration, int count) {
   Serial.print(call_delay);
   Serial.print(", Count: ");
   Serial.println(count);
-  while (count != 0) {
+  // `count > 0`: avval `!= 0` edi -- manfiy count (noto'g'ri JSON) cheksiz qo'ng'iroq qilardi
+  while (count > 0) {
     count--;
     digitalWrite(CALL_PIN, HIGH);
-    delay(call_duration);
+    keepAliveDelay(call_duration);
     digitalWrite(CALL_PIN, LOW);
-    delay(call_delay);
+    keepAliveDelay(call_delay);
   }
   digitalWrite(LED_FAIL, LOW);
 }
@@ -86,6 +99,11 @@ void check_calls() {
 
   // Eski vaqt bilan hozirgi vaqtni solishtiramiz
   if (old__day != __day || old__hour != __hour || old__minute != __minute) {
+    // Vaqtni darhol eslab qolamiz: avval faqat mos kelganda yangilanardi, shuning
+    // uchun mos kelmasa /smart.txt har loop() aylanishida qayta o'qilardi.
+    old__day = __day;
+    old__hour = __hour;
+    old__minute = __minute;
     // Faylni ochishga harakat qilamiz
     File file = SPIFFS.open("/smart.txt", "r");
     if (!file) {
@@ -156,7 +174,9 @@ void check_calls() {
         } else {
           Serial.println("Vaqtni ajratishda xatolik: Format noto'g'ri.");
         }
-        bool flag = ch1 && ch2 && ch3;
+        // isactive=false bo'lgan qo'ng'iroq chalinmasligi kerak (avval e'tiborga olinmagan)
+        bool active = json["isactive"] | true;
+        bool flag = ch1 && ch2 && ch3 && active;
         // Serial.print(" flag: ");
         // Serial.println(flag);
         if (flag) {
@@ -193,8 +213,9 @@ void check_calls() {
 // Xabarlarni eshitish funksiyasi
 void listenForMessage() {
   if (radio.available()) {                                  // If a message is available
-    char receivedMessage[32] = "";                          // Buffer for the message
-    radio.read(&receivedMessage, sizeof(receivedMessage));  // Read the message
+    // 33 bayt: radio 32 bayt yozadi, oxirgi bayt doim '\0' (avval terminatorsiz edi -> strcmp/println buffer'dan chiqib ketardi)
+    char receivedMessage[33] = "";
+    radio.read(&receivedMessage, 32);  // Read the message (payload = 32 bayt)
 
     // Print the received message
     Serial.print("Qabul qilindi: ");
@@ -211,9 +232,12 @@ void listenForMessage() {
 
 
 DynamicJsonDocument deserializeWithMemoryIncrease(const char* json_str) {
-  size_t memorySize = 500;                                // Initial memory size
-  const size_t maxMemorySize = ESP.getFreeHeap() - 5000;  // Maximum memory (free memory - buffer)
-  Serial.println("deserializeWithMemoryIncrease :" + String(json_str));
+  size_t memorySize = 500;  // Initial memory size
+  // Xotira kam bo'lsa (<5000) unsigned ayirish aylanib ketardi -- tekshiramiz
+  const size_t freeHeap = ESP.getFreeHeap();
+  const size_t maxMemorySize = freeHeap > 5000 ? freeHeap - 5000 : 0;  // Maximum memory (free memory - buffer)
+  // Mazmunni chop etmaymiz (sozlamalarda parollar bo'lishi mumkin) -- faqat uzunlik
+  Serial.println("deserializeWithMemoryIncrease, len=" + String(json_str ? strlen(json_str) : 0));
   while (true) {
     // Create a document with current memory size
     DynamicJsonDocument jsonDoc(memorySize);

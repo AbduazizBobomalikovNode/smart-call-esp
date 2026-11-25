@@ -3,6 +3,13 @@
 #include <ArduinoJson.h>
 #include "utils.h"
 
+// Maxfiy boshlang'ich qiymatlar. secrets.example.h dan secrets.h nusxalang.
+#if __has_include("secrets.h")
+#include "secrets.h"
+#else
+#error "secrets.h topilmadi: secrets.example.h ni secrets.h deb nusxalang va to'ldiring"
+#endif
+
 
 
 ESP32WebServer server(80);
@@ -20,7 +27,7 @@ const int LED_SUCCESS = 14;
 const int LED_FAIL = 27;
 
 const int CALL_PIN = 32;
-const byte address[6] = "00005";
+const byte address[6] = SECRET_RADIO_ADDRESS;  // secrets.h dan
 
 RTC_DS1307 rtc;
 RF24 radio(CE_PIN, CSN_PIN);
@@ -31,13 +38,13 @@ int __day, __hour, __minute;
 int update_id = 0;
 
 // MQTT broker details
-const char* mqtt_server = "abdusoft.uz";  // e.g., "192.168.1.100"
+const char* mqtt_server = SECRET_MQTT_SERVER;  // secrets.h dan
 const int mqtt_port = 1883;
-const char* mqtt_user = "***REMOVED***";
-const char* mqtt_password = "***REMOVED***";  // JWT token
-const char* mqtt_client_id = "demo-NjMKHkO810gkfhh";
-const char* user_mqtt = "55087719";
-const char* user_mqtt_device_id = "99436911";
+const char* mqtt_user = SECRET_MQTT_USER;
+const char* mqtt_password = SECRET_MQTT_PASSWORD;
+const char* mqtt_client_id = SECRET_MQTT_CLIENT_ID;
+const char* user_mqtt = SECRET_USER_MQTT;
+const char* user_mqtt_device_id = SECRET_USER_MQTT_DEVICE_ID;
 String subscribe_topic_str = String("/index/") + user_mqtt + "/ring";
 const char* subscribe_topic = strdup(subscribe_topic_str.c_str());
 
@@ -53,19 +60,19 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 
 
-const char* wifi_ssid = "***REMOVED***";       //1
-const char* wifi_password = "***REMOVED***";  //2
+const char* wifi_ssid = SECRET_WIFI_SSID;
+const char* wifi_password = SECRET_WIFI_PASSWORD;
 
 //hostpot_ssid  sifatida
-const char* hostpot_and_device_username = "abdusoft_device";  // 3 qurilma nomi  device  wi
+const char* hostpot_and_device_username = SECRET_HOTSPOT_SSID;  // qurilma nomi / hotspot SSID
 //hostpot_password  sifatida
-const char* hostpot_password = "***REMOVED***";  // 6 password user
+const char* hostpot_password = SECRET_HOTSPOT_PASSWORD;  // hotspot paroli
 
 
 //auth login  sifatida
-const char* device_login = "abdusoft";  //5 login user
+const char* device_login = SECRET_DEVICE_LOGIN;  // HTTP auth login
 //auth password  sifatida
-const char* device_pin = "***REMOVED***";  //4 qurilma pin kodi device
+const char* device_pin = SECRET_DEVICE_PIN;  // HTTP auth paroli (PIN)
 
 //espni  o'chirib yoqish uchun
 int check_ESP_restart_counter = 0;
@@ -73,6 +80,36 @@ bool check_ESP_restart_counter_flag = false;
 
 
 
+
+// Maxfiy qiymatlarni Serial'ga chiqarmaslik: faqat uzunligi ko'rsatiladi.
+static void printMasked(const char* secret) {
+  Serial.print("*** (len=");
+  Serial.print(secret ? strlen(secret) : 0);
+  Serial.println(")");
+}
+
+// strdup bilan olingan xotirani kuzatish: sozlama qayta o'qilganda/yangilanganda
+// eski nusxa free() qilinadi (avval har safar oqib ketardi). Literal va boshlang'ich
+// qiymatlar ro'yxatda yo'q -- ular hech qachon free() qilinmaydi.
+static const char* owned_strings[16];
+
+void setConfigStr(const char*& slot, const char* value) {
+  if (value == nullptr) return;  // JSON'da kalit bor, lekin satr emas -- strdup(NULL) crash bo'lardi
+  char* copy = strdup(value);
+  if (copy == nullptr) return;   // xotira yetmadi -- eski qiymat qoladi
+  for (auto& p : owned_strings) {
+    if (p != nullptr && p == slot) {  // eski qiymat bizniki edi -- bo'shatamiz
+      free((void*)p);
+      p = copy;
+      slot = copy;
+      return;
+    }
+  }
+  for (auto& p : owned_strings) {
+    if (p == nullptr) { p = copy; break; }
+  }
+  slot = copy;
+}
 
 void printSettings() {
   Serial.print("MALUMOTLAT  IDsi : ");
@@ -90,7 +127,7 @@ void printSettings() {
   Serial.println(mqtt_user);
 
   Serial.print("Password: ");
-  Serial.println(mqtt_password);
+  printMasked(mqtt_password);
 
   Serial.print("Client ID: ");
   Serial.println(mqtt_client_id);
@@ -109,21 +146,21 @@ void printSettings() {
   Serial.println(wifi_ssid);
 
   Serial.print("Password: ");
-  Serial.println(wifi_password);
+  printMasked(wifi_password);
 
   Serial.println("\n--- Hotspot and Device Settings ---");
   Serial.print("Username: ");
   Serial.println(hostpot_and_device_username);
 
   Serial.print("Hotspot Password: ");
-  Serial.println(hostpot_password);
+  printMasked(hostpot_password);
 
   Serial.println("\n--- Authentication Settings ---");
   Serial.print("Device Login: ");
   Serial.println(device_login);
 
   Serial.print("Device PIN: ");
-  Serial.println(device_pin);
+  printMasked(device_pin);
 
   Serial.println("====================================");
 }
@@ -145,8 +182,9 @@ bool loadSettings() {
 
   String json_string = file.readString();
 
-  Serial.println("read ");
-  Serial.println(json_string);
+  // Fayl mazmunini chop etmaymiz: unda parollar bor.
+  Serial.print("settings.txt o'qildi, bayt: ");
+  Serial.println(json_string.length());
 
   DynamicJsonDocument doc = deserializeWithMemoryIncrease(json_string.c_str());
 
@@ -155,43 +193,43 @@ bool loadSettings() {
     update_id = doc["update_id"].as<int>();
   }
   if (doc.containsKey("mqtt_server")) {
-    mqtt_server = strdup(doc["mqtt_server"].as<const char*>());
+    setConfigStr(mqtt_server, doc["mqtt_server"].as<const char*>());
   }
   if (doc.containsKey("mqtt_user")) {
-    mqtt_user = strdup(doc["mqtt_user"].as<const char*>());
+    setConfigStr(mqtt_user, doc["mqtt_user"].as<const char*>());
   }
   if (doc.containsKey("mqtt_password")) {
-    mqtt_password = strdup(doc["mqtt_password"].as<const char*>());
+    setConfigStr(mqtt_password, doc["mqtt_password"].as<const char*>());
   }
   if (doc.containsKey("mqtt_client_id")) {
-    mqtt_client_id = strdup(doc["mqtt_client_id"].as<const char*>());
+    setConfigStr(mqtt_client_id, doc["mqtt_client_id"].as<const char*>());
   }
   if (doc.containsKey("subscribe_topic")) {
-    subscribe_topic = strdup(doc["subscribe_topic"].as<const char*>());
+    setConfigStr(subscribe_topic, doc["subscribe_topic"].as<const char*>());
   }
   if (doc.containsKey("seting_topic")) {
-    seting_topic = strdup(doc["seting_topic"].as<const char*>());
+    setConfigStr(seting_topic, doc["seting_topic"].as<const char*>());
   }
   if (doc.containsKey("publish_topic")) {
-    publish_topic = strdup(doc["publish_topic"].as<const char*>());
+    setConfigStr(publish_topic, doc["publish_topic"].as<const char*>());
   }
   if (doc.containsKey("hostpot_and_device_username")) {
-    hostpot_and_device_username = strdup(doc["hostpot_and_device_username"].as<const char*>());
+    setConfigStr(hostpot_and_device_username, doc["hostpot_and_device_username"].as<const char*>());
   }
   if (doc.containsKey("hostpot_password")) {
-    hostpot_password = strdup(doc["hostpot_password"].as<const char*>());
+    setConfigStr(hostpot_password, doc["hostpot_password"].as<const char*>());
   }
   if (doc.containsKey("device_login")) {
-    device_login = strdup(doc["device_login"].as<const char*>());
+    setConfigStr(device_login, doc["device_login"].as<const char*>());
   }
   if (doc.containsKey("device_pin")) {
-    device_pin = strdup(doc["device_pin"].as<const char*>());
+    setConfigStr(device_pin, doc["device_pin"].as<const char*>());
   }
   if (doc.containsKey("wifi_ssid")) {
-    wifi_ssid = strdup(doc["wifi_ssid"].as<const char*>());
+    setConfigStr(wifi_ssid, doc["wifi_ssid"].as<const char*>());
   }
   if (doc.containsKey("wifi_password")) {
-    wifi_password = strdup(doc["wifi_password"].as<const char*>());
+    setConfigStr(wifi_password, doc["wifi_password"].as<const char*>());
   }
   // Faylni yopish
   printSettings();
@@ -221,6 +259,12 @@ bool saveSettings() {
 
   doc["wifi_ssid"] = wifi_ssid;
   doc["wifi_password"] = wifi_password;
+
+  // Hujjat to'lib ketgan bo'lsa, yarim sozlamani saqlab qo'ymaymiz
+  if (doc.overflowed()) {
+    Serial.println("Settings JSON hujjati to'lib ketdi, saqlanmadi.");
+    return false;
+  }
 
   // Sozlamalar faylini yozish uchun ochish
   File file = SPIFFS.open("/settings.txt", "w");

@@ -34,6 +34,10 @@ void printAllHeaders() {
     // Sarlavhaning nomini va qiymatini olish
     String headerName = server.headerName(i);
     String headerValue = server.header(i);
+    // Authorization (Basic login:PIN) va Cookie qiymatlarini chop etmaymiz
+    if (headerName.equalsIgnoreCase("Authorization") || headerName.equalsIgnoreCase("Cookie")) {
+      headerValue = "***";
+    }
 
     // Chop etish
     Serial.print(headerName + ": ");

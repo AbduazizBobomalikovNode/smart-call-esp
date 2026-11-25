@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 420" width="920" height="420" role="img" aria-labelledby="t d">
+  <title id="t">Aqlli qo'ng'iroq: qurilma qanday ishlaydi</title>
+  <desc id="d">ESP32 asosiy qurilma jadvalni SPIFFS'da saqlaydi va DS1307 soat bo'yicha relega signal beradi. U MQTT orqali serverdan jadval va sozlamalarni oladi, HTTP orqali hotspot yoki Wi-Fi'dan boshqariladi, nRF24 orqali pult tugmasidan "HA" xabarini qabul qiladi.</desc>
+  <style>
+    .card { fill: #ffffff; stroke: #d6dbe6; stroke-width: 1.5; }
+    .main { fill: #eef4ff; stroke: #3b6fe0; stroke-width: 2; }
+    .hw { fill: #fff6e8; stroke: #f0a020; stroke-width: 2; }
+    .h { font: 600 15px 'Segoe UI', Arial, sans-serif; fill: #1f2a44; }
+    .s { font: 12.5px 'Segoe UI', Arial, sans-serif; fill: #5d6680; }
+    .m { font: 12px ui-monospace, Consolas, monospace; fill: #33405e; }
+    .wire { stroke: #cdd5e4; stroke-width: 2; fill: none; }
+    .flow { stroke: #3b6fe0; stroke-width: 3; fill: none; stroke-dasharray: 7 11; animation: dash 1.3s linear infinite; }
+    .flow.o { stroke: #f0a020; }
+    .flow.r { animation-direction: reverse; }
+    .bell { fill: #f0a020; transform-box: fill-box; transform-origin: 50% 10%; animation: ring 2.6s ease-in-out infinite; }
+    .led { fill: #e23d3d; animation: blink 2.6s steps(1) infinite; }
+    @keyframes dash { to { stroke-dashoffset: -36; } }
+    @keyframes ring { 0%, 55%, 100% { transform: rotate(0); } 60% { transform: rotate(14deg); } 66% { transform: rotate(-14deg); } 72% { transform: rotate(10deg); } 78% { transform: rotate(-8deg); } 84% { transform: rotate(0); } }
+    @keyframes blink { 0%, 55% { opacity: .2; } 56%, 86% { opacity: 1; } 87%, 100% { opacity: .2; } }
+    @media (prefers-reduced-motion: reduce) { .flow, .bell, .led { animation: none; } .led { opacity: 1; } }
+  </style>
+  <rect width="920" height="420" rx="14" fill="#f7f9fd"/>
+
+  <!-- Server -->
+  <rect class="card" x="20" y="30" width="230" height="120" rx="12"/>
+  <text class="h" x="40" y="60">Server (MQTT broker)</text>
+  <text class="m" x="40" y="86">/index/&lt;user&gt;/ring</text>
+  <text class="m" x="40" y="106">/index/&lt;user&gt;/seting</text>
+  <text class="m" x="40" y="126">/get  ← hello, ack</text>
+
+  <!-- Phone / browser -->
+  <rect class="card" x="20" y="180" width="230" height="100" rx="12"/>
+  <text class="h" x="40" y="210">Telefon / dastur</text>
+  <text class="s" x="40" y="234">HTTP :80, Basic auth</text>
+  <text class="m" x="40" y="256">/call /get /add /update/:id</text>
+
+  <!-- Remote -->
+  <rect class="card" x="20" y="310" width="230" height="90" rx="12"/>
+  <text class="h" x="40" y="340">Pult (ESP32-C3)</text>
+  <text class="s" x="40" y="362">tugma → nRF24 "HA"</text>
+  <text class="s" x="40" y="382">deep sleep, GPIO2 uyg'otadi</text>
+
+  <path class="wire" d="M250 90 H360 M250 230 H360 M250 355 H360"/>
+  <path class="flow" d="M250 90 H360"/>
+  <path class="flow r" d="M250 90 H360" style="stroke-dashoffset:9;opacity:.45"/>
+  <path class="flow" d="M250 230 H360"/>
+  <path class="flow o" d="M250 355 H360"/>
+
+  <!-- Main device -->
+  <rect class="main" x="360" y="30" width="300" height="370" rx="14"/>
+  <text class="h" x="380" y="60">ESP32 asosiy qurilma</text>
+  <text class="s" x="380" y="86">Wi-Fi STA + hotspot (AP) doim yoqiq</text>
+  <text class="s" x="380" y="108">MQTT 1883 · HTTP 80 · nRF24 (CE 4, CSN 5)</text>
+  <rect class="card" x="380" y="126" width="260" height="70" rx="10"/>
+  <text class="h" x="396" y="150">SPIFFS</text>
+  <text class="m" x="396" y="172">/settings.txt  sozlamalar</text>
+  <text class="m" x="396" y="188">/smart.txt     jadval (JSONL)</text>
+  <rect class="card" x="380" y="210" width="260" height="70" rx="10"/>
+  <text class="h" x="396" y="234">check_calls()</text>
+  <text class="s" x="396" y="256">kun + soat + daqiqa mos kelsa</text>
+  <text class="s" x="396" y="274">va isactive = true → qo'ng'iroq</text>
+  <rect class="card" x="380" y="294" width="260" height="90" rx="10"/>
+  <text class="h" x="396" y="318">callParm(vaqt, pauza, soni)</text>
+  <text class="s" x="396" y="340">rele GPIO 32 yoqiladi/o'chadi</text>
+  <text class="s" x="396" y="360">LED 27 qo'ng'iroq paytida yonadi</text>
+  <text class="s" x="396" y="376">LED 14 Wi-Fi kutilayotganda yonadi</text>
+
+  <path class="wire" d="M660 120 H720 M660 330 H720"/>
+  <path class="flow o" d="M660 330 H720"/>
+  <path class="flow o r" d="M720 120 H660"/>
+
+  <!-- RTC -->
+  <rect class="hw" x="720" y="60" width="180" height="110" rx="12"/>
+  <text class="h" x="740" y="90">DS1307 RTC</text>
+  <text class="s" x="740" y="114">internetsiz vaqt</text>
+  <text class="s" x="740" y="134">NTP yo'q, vaqt</text>
+  <text class="s" x="740" y="152">kodda o'rnatilmaydi</text>
+
+  <!-- Bell -->
+  <rect class="hw" x="720" y="250" width="180" height="150" rx="12"/>
+  <text class="h" x="740" y="280">Rele → qo'ng'iroq</text>
+  <g transform="translate(785 300)">
+    <path class="bell" d="M25 4 C13 4 8 14 8 26 V44 L2 52 H48 L42 44 V26 C42 14 37 4 25 4 Z M19 56 a6 6 0 0 0 12 0 Z"/>
+  </g>
+  <circle class="led" cx="748" cy="372" r="7"/>
+  <text class="s" x="762" y="377">LED 27</text>
+</svg>

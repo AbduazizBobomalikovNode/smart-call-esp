@@ -10,9 +10,18 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print(topic);
   Serial.print("] ");
   String data;
-  for (int i = 0; i < length; i++) {
+  data.reserve(length);
+  // Payload faqat jadval (ring) topic'ida chop etiladi; sozlama topic'ida
+  // PIN va WiFi paroli bo'ladi -- uni Serial'ga chiqarmaymiz.
+  const bool is_ring_topic = (String(topic) == subscribe_topic);
+  for (unsigned int i = 0; i < length; i++) {
     data += (char)payload[i];
-    Serial.print((char)payload[i]);
+    if (is_ring_topic) Serial.print((char)payload[i]);
+  }
+  if (!is_ring_topic) {
+    Serial.print("(yashirilgan, bayt: ");
+    Serial.print(length);
+    Serial.print(")");
   }
   Serial.println();
   // Serial.println(String(topic) + "   " + subscribe_topic);
@@ -31,7 +40,9 @@ void callback(char* topic, byte* payload, unsigned int length) {
       String json_data = json["data"].as<String>();
       DynamicJsonDocument data = deserializeWithMemoryIncrease(json_data.c_str());
 
-      if (!validateFields(data) && saveToFile(json_data)) {
+      // FIX: validateFields() to'g'ri maydonlarda true qaytaradi; avval `!validateFields`
+      // yozilgan edi -- ya'ni faqat NOTO'G'RI jadval saqlanardi (add/update/check ham shunday).
+      if (validateFields(data) && saveToFile(json_data)) {
         Serial.println("Qurilmaga yangi ma'lumot qo'shildi!");
       } else {
         Serial.println("malumot   saqlashda qandaydir xatolik mavjut");
@@ -40,7 +51,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       // JsonObject  = json["data"].as<JsonObject>();
       String json_data = json["data"].as<String>();
       DynamicJsonDocument data = deserializeWithMemoryIncrease(json_data.c_str());
-      if (!validateFields(data) && updateJsonById(data["id"].as<int>(), json_data)) {
+      if (validateFields(data) && updateJsonById(data["id"].as<int>(), json_data)) {
         Serial.println(String(data["id"].as<int>()) + " - idli chalinish yangilandi!");
       } else {
         Serial.println("malumot   tahrirlashda qandaydir xatolik mavjut");
@@ -71,13 +82,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
         String json_data = json["data"].as<String>();
         DynamicJsonDocument data = deserializeWithMemoryIncrease(json_data.c_str());
         if (checkJsonById(data["id"].as<int>())) {
-          if (!validateFields(data) && updateJsonById(data["id"].as<int>(), json_data)) {
+          if (validateFields(data) && updateJsonById(data["id"].as<int>(), json_data)) {
             Serial.println(String(data["id"].as<int>()) + " - idli chalinish yangilandi!");
           } else {
             Serial.println("malumot   tahrirlashda qandaydir xatolik mavjut");
           }
         } else {
-          if (!validateFields(data) && saveToFile(json_data)) {
+          if (validateFields(data) && saveToFile(json_data)) {
             Serial.println("Qurilmaga yangi ma'lumot qo'shildi!");
           } else {
             Serial.println("malumot   saqlashda qandaydir xatolik mavjut");
@@ -102,13 +113,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
       if (!userData.isNull()) {
         if (userData.containsKey("device_login") && userData["device_login"].as<String>().length() > 0) {
-          device_login = strdup(userData["device_login"].as<String>().c_str());
+          setConfigStr(device_login, userData["device_login"].as<String>().c_str());
         } else {
           Serial.println("Login ma'lumoti bo'sh!");
         }
 
         if (userData.containsKey("hostpot_password") && userData["hostpot_password"].as<String>().length() > 0) {
-          hostpot_password = strdup(userData["hostpot_password"].as<String>().c_str());
+          setConfigStr(hostpot_password, userData["hostpot_password"].as<String>().c_str());
         } else {
           Serial.println("Hotspot paroli bo'sh!");
         }
@@ -124,25 +135,25 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
       if (!deviceData.isNull()) {
         if (deviceData.containsKey("name") && deviceData["name"].as<String>().length() > 0) {
-          hostpot_and_device_username = strdup(deviceData["name"].as<String>().c_str());
+          setConfigStr(hostpot_and_device_username, deviceData["name"].as<String>().c_str());
         } else {
           Serial.println("Qurilma nomi bo'sh!");
         }
 
         if (deviceData.containsKey("pin") && deviceData["pin"].as<String>().length() > 0) {
-          device_pin = strdup(deviceData["pin"].as<String>().c_str());
+          setConfigStr(device_pin, deviceData["pin"].as<String>().c_str());
         } else {
           Serial.println("Qurilma PIN kod bo'sh!");
         }
 
         if (deviceData.containsKey("wifi_name") && deviceData["wifi_name"].as<String>().length() > 0) {
-          wifi_ssid = strdup(deviceData["wifi_name"].as<String>().c_str());
+          setConfigStr(wifi_ssid, deviceData["wifi_name"].as<String>().c_str());
         } else {
           Serial.println("WiFi nomi bo'sh!");
         }
 
         if (deviceData.containsKey("wifi_password") && deviceData["wifi_password"].as<String>().length() > 0) {
-          wifi_password = strdup(deviceData["wifi_password"].as<String>().c_str());
+          setConfigStr(wifi_password, deviceData["wifi_password"].as<String>().c_str());
         } else {
           Serial.println("WiFi paroli bo'sh!");
         }

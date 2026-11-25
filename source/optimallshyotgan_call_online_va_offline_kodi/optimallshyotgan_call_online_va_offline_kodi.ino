@@ -75,8 +75,10 @@ void setup() {
   Serial.println("Hotspot created");
   Serial.print("SSID: ");
   Serial.println(hostpot_and_device_username);
-  Serial.print("Password: ");
-  Serial.println(hostpot_password);
+  Serial.print("Password: ***");  // parol Serial'ga chiqarilmaydi
+  Serial.print(" (len=");
+  Serial.print(hostpot_password ? strlen(hostpot_password) : 0);
+  Serial.println(")");
 
   server.on("/call", HTTP_GET, handleRoot);
   server.on("/pin", HTTP_GET, handleHello);
@@ -147,7 +149,8 @@ void setup() {
 }
 
 
-int old_time_checker = 0;
+// unsigned long: int millis() ~24.8 kundan keyin to'lib ketardi va hisoblagich to'xtardi
+unsigned long old_time_checker = 0;
 void loop() {
   listenForMessage();
   server.handleClient();

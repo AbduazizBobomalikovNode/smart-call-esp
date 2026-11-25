@@ -3,6 +3,7 @@
 #include <RF24.h>
 #include <esp_sleep.h>  // ESP32 uyqu kutubxonasi
 #include <stdlib.h>     // Tasodifiy sonlar uchun
+#include "secrets.h"      // secrets.example.h dan nusxalang
 
 #define CE_PIN 0
 #define CSN_PIN 1
@@ -12,7 +13,8 @@
 #define W2 10  // 10-pinni LED
 
 RF24 radio(CE_PIN, CSN_PIN);
-const byte address[6] = "00005";
+// Radio juftlash manzili secrets.h da (asosiy qurilmadagi bilan bir xil bo'lsin)
+const byte address[6] = SECRET_RADIO_ADDRESS;
 
 unsigned long lastDebounceTime = 0;
 const unsigned long debounceDelay = 500;

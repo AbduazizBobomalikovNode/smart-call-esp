@@ -58,4 +58,6 @@ extern bool check_ESP_restart_counter_flag;
 bool loadSettings();
 bool saveSettings();
 void printSettings();
+// strdup + eski nusxani free() qiladi (xotira oqishining oldini oladi)
+void setConfigStr(const char*& slot, const char* value);
 #endif  // VARIABLES_H
