@@ -123,15 +123,19 @@ cp source/smart_call_remote/secrets.example.h source/smart_call_remote/secrets.h
 
 ## Xavfsizlik va cheklovlar
 
-> [!WARNING]
-> Repo tarixida avval kodga yozilgan MQTT tokeni (JWT), Wi-Fi paroli va qurilma PIN kodi qolgan. **Ularni almashtiring.** Tarixni `git filter-repo` bilan tozalash mumkin.
+> [!NOTE]
+> Git tarixi 2026-11-26 da `git filter-repo` bilan tozalandi. Avval kodga yozilgan MQTT tokeni (JWT), Wi-Fi va hotspot parollari hamda qurilma PIN kodi tarixdan olib tashlandi. Commit SHA'lari o'zgardi: eski klonlarni qayta klon qiling.
 
 - **Shifrlash yo'q.** MQTT (1883) va HTTP (80) ochiq matnda ishlaydi. Sozlamalar ham `/settings.txt` da ochiq saqlanadi.
 - **Parol ochiq taqqoslanadi.** HTTP auth `device_login` va `device_pin` ni to'g'ridan-to'g'ri solishtiradi. `hash.cpp` (SHA-256 + salt) bor, lekin hech qayerda chaqirilmaydi.
 - **Vaqtni qo'lda o'rnatish kerak.** RTC kodda o'rnatilmaydi va NTP yo'q. DS1307 vaqtini oldindan o'rnating.
 - **`/update` va `/delete`** istalgan HTTP usulini qabul qiladi.
 - **`hello` xabari.** `user_mqtt_device_id` JSON'ga qo'shtirnoqsiz yoziladi, shuning uchun u raqam bo'lishi kerak.
-- **Kompilyatsiya qilinmagan.** Bu o'zgarishlar bu sessiyada kompilyatsiya qilinmagan: ESP32 toolchain'ini yuklab bo'lmadi. Qurilmaga yozishdan oldin Arduino IDE'da tekshiring.
+- **Kompilyatsiya tekshirilgan, qurilmada sinalmagan.** 2026-11-26 da arduino-cli 1.6.0 bilan kompilyatsiya qilindi: esp32 core 3.3.13, ArduinoJson 6.21.6.
+  - Asosiy sketch (ESP32): flash 79%, RAM 15%.
+  - Pult (ESP32-C3): flash 25%, RAM 4%.
+  - Core 4.0.0 bilan kompilyatsiya qilinmaydi: `mbedtls/sha256.h` va `esp_deep_sleep_enable_gpio_wakeup` yo'q.
+  - Qurilmaga yozib sinalmagan.
 
 ### Shu versiyadagi tuzatishlar
 
@@ -150,7 +154,7 @@ cp source/smart_call_remote/secrets.example.h source/smart_call_remote/secrets.h
 | `compare_passwords` | oddiy taqqoslash | doimiy vaqtli taqqoslash |
 
 > [!IMPORTANT]
-> MQTT tuzatishidan keyin server yuborgan to'g'ri jadvallar endi haqiqatan saqlanadi. Backend xabarlarida barcha maydonlar (yuqoridagi jadvalga qarang) bo'lishini tekshiring.
+> MQTT tuzatishidan keyin faqat to'g'ri turdagi jadvallar saqlanadi: `id`, `call_duration`, `call_delay` va `count` butun son, `turn_off_after_work` va `isactive` boolean bo'lishi kerak. Avval server bu maydonlarni string qilib yuborardi va qurilma ularni rad etardi. [smart-call-servise](https://github.com/AbduazizBobomalikovNode/smart-call-servise) `077bb1f` dan boshlab turlarni to'g'ri yuboradi. Bazadagi eski yozuvlar uning `scripts/migrate-ring-types.js` skripti bilan o'giriladi.
 
 ## Loyiha tuzilishi
 
